@@ -1,0 +1,74 @@
+# Cargar las bibliotecas necesarias
+install.packages("tidyverse")
+install.packages("caret")
+install.packages("randomForest")
+install.packages("ggplot2")
+install.packages("corrplot")
+library(tidyverse)
+library(caret)
+library(randomForest)
+library(ggplot2)
+library(corrplot)
+
+# 1. Adquisición de Datos
+# Asumimos que los datos están en un archivo CSV llamado 'datos_inmobiliarios.csv'
+datos <- read.csv("D:/bienes_raices.csv")
+str(datos)
+# 2. Preprocesamiento de Datos
+# Eliminar filas con valores faltantes
+datos_limpios <- datos %>% 
+  drop_na()
+
+# Eliminar duplicados
+datos_limpios <- datos_limpios %>% 
+  distinct()
+
+# 3. Análisis de Datos Exploratorio (EDA)
+# Resumen estadístico
+summary(datos_limpios)
+
+# Visualización de la distribución de precios
+ggplot(datos_limpios, aes(x = precio)) +
+  geom_histogram(bins = 50, fill = "blue", alpha = 0.7) +
+  theme_minimal() +
+  labs(title = "Distribución de Precios de Propiedades", x = "Precio", y = "Frecuencia")
+
+# Matriz de correlación
+correlacion <- cor(datos_limpios %>% select_if(is.numeric))
+corrplot(correlacion, method = "circle")
+
+# 4. Ingeniería de Características
+# Ejemplo: Crear una nueva característica 'precio_por_metro_cuadrado'
+datos_limpios <- datos_limpios %>%
+  mutate(precio_por_metro_cuadrado = precio / superficie_total)
+
+# Codificación de variables categóricas
+datos_limpios <- datos_limpios %>%
+  mutate_if(is.character, as.factor)
+
+# 5. División de Datos
+set.seed(123)  # Para reproducibilidad
+indices_entrenamiento <- createDataPartition(datos_limpios$precio, p = 0.8, list = FALSE)
+datos_entrenamiento <- datos_limpios[indices_entrenamiento, ]
+datos_prueba <- datos_limpios[-indices_entrenamiento, ]
+
+# Imprimir las dimensiones de los conjuntos de entrenamiento y prueba
+print(paste("Dimensiones del conjunto de entrenamiento:", dim(datos_entrenamiento)))
+print(paste("Dimensiones del conjunto de prueba:", dim(datos_prueba)))
+
+# Ejemplo de modelo: Random Forest
+modelo_rf <- randomForest(precio ~ ., data = datos_entrenamiento)
+
+# Realizar predicciones en el conjunto de prueba
+predicciones <- predict(modelo_rf, datos_prueba)
+
+# Evaluar el rendimiento del modelo
+rmse <- sqrt(mean((predicciones - datos_prueba$precio)^2))
+print(paste("RMSE:", rmse))
+
+# Visualizar predicciones vs valores reales
+ggplot(data.frame(real = datos_prueba$precio, predicho = predicciones), aes(x = real, y = predicho)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(color = "red") +
+  theme_minimal() +
+  labs(title = "Predicciones vs Valores Reales", x = "Precio Real", y = "Precio Predicho")
